@@ -7,96 +7,28 @@
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 
-let intlFileNameCollator: Intl.Collator;
-let intlFileNameCollatorIsNumeric: boolean;
+function baseCompare(one: string, other: string, caseSensitive = false, numeric = true): number {
+	return one.localeCompare(other, undefined, {
+		numeric,
+		sensitivity: caseSensitive ? 'case' : 'base',
+	});
+}
 
-export function setFileNameComparer(collator: Intl.Collator): void {
-	intlFileNameCollator = collator;
-	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
+// Using the numeric option in the collator will
+// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
+function baseCompareFixNumeric(one: string, other: string, caseSensitive = false): number {
+	let result = baseCompare(one, other, caseSensitive);
+	if (result !== 0) {
+		return result;
+	}
+	return baseCompare(one, other, caseSensitive, false);
 }
 
 export function compareFileNames(one: string, other: string, caseSensitive = false): number {
-	if (intlFileNameCollator) {
-		const a = one || '';
-		const b = other || '';
-		const result = intlFileNameCollator.compare(a, b);
-
-		// Using the numeric option in the collator will
-		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-		if (intlFileNameCollatorIsNumeric && result === 0 && a !== b) {
-			return a < b ? -1 : 1;
-		}
-
-		return result;
-	}
-
-	return noIntlCompareFileNames(one, other, caseSensitive);
+	return baseCompare(one, other, caseSensitive);
 }
 
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
-
-export function noIntlCompareFileNames(one: string, other: string, caseSensitive = false): number {
-	if (!caseSensitive) {
-		one = one && one.toLowerCase();
-		other = other && other.toLowerCase();
-	}
-
-	const [oneName, oneExtension] = extractNameAndExtension(one);
-	const [otherName, otherExtension] = extractNameAndExtension(other);
-
-	if (oneName !== otherName) {
-		return oneName < otherName ? -1 : 1;
-	}
-
-	if (oneExtension === otherExtension) {
-		return 0;
-	}
-
-	return oneExtension < otherExtension ? -1 : 1;
-}
-
-export function compareFileExtensions(one: string, other: string): number {
-	if (intlFileNameCollator) {
-		const [oneName, oneExtension] = extractNameAndExtension(one);
-		const [otherName, otherExtension] = extractNameAndExtension(other);
-
-		let result = intlFileNameCollator.compare(oneExtension, otherExtension);
-
-		if (result === 0) {
-			// Using the numeric option in the collator will
-			// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-			if (intlFileNameCollatorIsNumeric && oneExtension !== otherExtension) {
-				return oneExtension < otherExtension ? -1 : 1;
-			}
-
-			// Extensions are equal, compare filenames
-			result = intlFileNameCollator.compare(oneName, otherName);
-
-			if (intlFileNameCollatorIsNumeric && result === 0 && oneName !== otherName) {
-				return oneName < otherName ? -1 : 1;
-			}
-		}
-
-		return result;
-	}
-
-	return noIntlCompareFileExtensions(one, other);
-}
-
-function noIntlCompareFileExtensions(one: string, other: string): number {
-	const [oneName, oneExtension] = extractNameAndExtension(one && one.toLowerCase());
-	const [otherName, otherExtension] = extractNameAndExtension(other && other.toLowerCase());
-
-	if (oneExtension !== otherExtension) {
-		return oneExtension < otherExtension ? -1 : 1;
-	}
-
-	if (oneName === otherName) {
-		return 0;
-	}
-
-	return oneName < otherName ? -1 : 1;
-}
 
 function extractNameAndExtension(str?: string): [string, string] {
 	const match = str ? FileNameMatch.exec(str) : [] as RegExpExecArray;
@@ -104,17 +36,19 @@ function extractNameAndExtension(str?: string): [string, string] {
 	return [(match && match[1]) || '', (match && match[3]) || ''];
 }
 
+export function compareFileExtensions(one: string, other: string): number {
+	const [oneName, oneExtension] = extractNameAndExtension(one.toLowerCase());
+	const [otherName, otherExtension] = extractNameAndExtension(other.toLowerCase());
+
+	if (oneExtension !== otherExtension) {
+		return baseCompareFixNumeric(oneExtension, otherExtension);
+	}
+
+	return baseCompareFixNumeric(oneName, otherName);
+}
+
 function comparePathComponents(one: string, other: string, caseSensitive = false): number {
-	if (!caseSensitive) {
-		one = one && one.toLowerCase();
-		other = other && other.toLowerCase();
-	}
-
-	if (one === other) {
-		return 0;
-	}
-
-	return one < other ? -1 : 1;
+	return baseCompareFixNumeric(one, other, caseSensitive);
 }
 
 export function comparePaths(one: string, other: string, caseSensitive = false): number {
@@ -163,13 +97,13 @@ export function compareAnything(one: string, other: string, lookFor: string): nu
 	}
 
 	// Understand file names
-	let r = compareFileNames(elementAName, elementBName);
-	if (r !== 0) {
-		return r;
+	let result = compareFileNames(elementAName, elementBName);
+	if (result !== 0) {
+		return result;
 	}
 
 	// Compare by name
-	return elementAName.localeCompare(elementBName);
+	return baseCompareFixNumeric(elementAName, elementBName);
 }
 
 export function compareByPrefix(one: string, other: string, lookFor: string): number {

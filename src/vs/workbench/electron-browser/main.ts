@@ -12,7 +12,6 @@ import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
-import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -68,9 +67,6 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 
 	browser.setAccessibilitySupport(configuration.accessibilitySupport ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
-
-	// Setup Intl
-	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 	// Open workbench
 	return openWorkbench(configuration);
